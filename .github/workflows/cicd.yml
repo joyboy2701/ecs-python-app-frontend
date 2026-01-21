@@ -38,5 +38,5 @@ jobs:
       - name: Build & Push Storage image
         run: |
           docker build -t storage-service:latest ./storage
-          docker tag storage-service:latest ${{ secrets.ECR_REGISTRY }}/storage-service:latest
-          docker push ${{ secrets.ECR_REGISTRY }}/storage-service:latest
+          docker tag storage-service:latest ${{ secrets.ECR_REGISTRY }}/upload-api:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/upload-api:latest
