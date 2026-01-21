@@ -1,0 +1,104 @@
+name: CI – Auto PR → Build & Push ECR
+
+on:
+  # 1️⃣ Feature branch commits → create PR
+  push:
+    branches:
+      - "feature/**"
+      - "bugfix/**"
+      - "hotfix/**"
+    paths:
+      - "api/**"
+      - "storage/**"
+
+  # 2️⃣ After PR merge → build & push
+  pull_request:
+    types:
+      - closed
+    branches:
+      - master
+
+jobs:
+  # ===============================
+  # JOB 1: AUTO CREATE PR
+  # ===============================
+  create-pr:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create PR if not exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          echo "Checking for existing PR from $BRANCH → master"
+
+          EXISTING_PR=$(gh pr list \
+            --head "$BRANCH" \
+            --base master \
+            --state open \
+            --json number \
+            --jq 'length')
+
+          if [ "$EXISTING_PR" -gt 0 ]; then
+            echo "PR already exists. Skipping."
+            exit 0
+          fi
+
+          echo "Creating PR..."
+          gh pr create \
+            --base master \
+            --head "$BRANCH" \
+            --title "Auto PR from $BRANCH" \
+            --body "This PR was automatically created. Please review and approve."
+
+  # ===============================
+  # JOB 2: BUILD & PUSH TO ECR
+  # ===============================
+  build-and-push:
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    environment: prod
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: arn:aws:iam::569023477847:role/github-actions-role
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push API image
+        run: |
+          docker build -t upload-api:latest ./api
+          docker tag upload-api:latest 569023477847.dkr.ecr.us-east-1.amazonaws.com/upload-api:latest
+          docker push 569023477847.dkr.ecr.us-east-1.amazonaws.com/upload-api:latest
+
+      - name: Build & Push Storage image
+        run: |
+          docker build -t storage-service:latest ./storage
+          docker tag storage-service:latest 569023477847.dkr.ecr.us-east-1.amazonaws.com/storage-service:latest
+          docker push 569023477847.dkr.ecr.us-east-1.amazonaws.com/storage-service:latest
