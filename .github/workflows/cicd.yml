@@ -1,12 +1,14 @@
 name: Build & Push Docker Images to ECR
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - master
 
 jobs:
   build-and-push:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     permissions:
@@ -44,7 +46,7 @@ jobs:
       - name: Update ECS Service
         run: |
          aws ecs update-service \
-         --cluster ecs-cluster \
-         --service api-service \
-         --force-new-deployment \
-         --region ${{ secrets.REGION }}
+         --cluster api-service \
+           --service api-service \
+           --force-new-deployment \
+           --region ${{ secrets.REGION }}
