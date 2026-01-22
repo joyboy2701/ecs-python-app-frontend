@@ -76,13 +76,13 @@ Required GitHub Secrets:
 The pipeline builds the Docker image using the `api/Dockerfile`:
 
 ```bash
-docker build -t storage-service:latest ./api
+docker build -t upload-api:latest ./api
 ```
 
 It then tags and pushes the image to Amazon ECR:
 
 ```bash
-docker tag storage-service:latest <ECR_REGISTRY>/upload-api:latest
+docker tag upload-api:latest <ECR_REGISTRY>/upload-api:latest
 docker push <ECR_REGISTRY>/upload-api:latest
 ```
 
