@@ -141,12 +141,3 @@ This causes ECS to:
 - This pipeline assumes **ECR repositories already exist**
 
 ---
-
-## 👤 Author
-
-**Zubair Liaqat**
-
----
-
-If you want to extend this pipeline (multi-env, versioned tags, rollback, blue/green, etc.), this setup is a solid foundation.
-
