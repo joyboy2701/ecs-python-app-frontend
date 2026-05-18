@@ -20,6 +20,12 @@ async def upload(file: UploadFile = File(...)):
         )
     return response.json()
 
+@app.get("/files")
+async def list_files():
+    """Fetch all files from the storage service"""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{STORAGE_SERVICE_URL}/files")
+    return response.json()
 
 # ✅ Health check endpoint
 @app.get("/health")
