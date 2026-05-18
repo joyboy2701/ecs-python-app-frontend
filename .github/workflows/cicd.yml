@@ -63,8 +63,9 @@ jobs:
 
       - name: Update ECS Service
         run: |
-          aws ecs update-service \
-            --cluster ${{ vars.CLUSTER }} \
-            --service ${{ vars.SERVICE }} \
-            --force-new-deployment \
-            --region ${{ secrets.REGION }}
+         aws ecs update-service \
+          --cluster  ${{ vars.CLUSTER }} \
+          --service  ${{ vars.SERVICE }} \
+           --force-new-deployment \
+           --region ${{ secrets.REGION }}
+           
