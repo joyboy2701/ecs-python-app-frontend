@@ -50,3 +50,4 @@ jobs:
           --service  ${{ vars.SERVICE }} \
            --force-new-deployment \
            --region ${{ secrets.REGION }}
+           
