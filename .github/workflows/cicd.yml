@@ -2,13 +2,37 @@ name: Build & Push Docker Images to ECR
 
 on:
   pull_request:
-    types: [closed]
+    types: [opened, synchronize, reopened, closed]
     branches:
       - master
 
 jobs:
+  sonarqube-scan:
+    name: SonarQube PR Quality Gate
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube Cloud Scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.qualitygate.wait=true
+
   build-and-push:
-    if: github.event.pull_request.merged == true
+    name: Build, Push and Deploy
+    needs: sonarqube-scan
+    if: github.event.action == 'closed' && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     permissions:
@@ -21,12 +45,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      # - name: Show OIDC subject
-      #   run: |
-      #     echo "Requesting token"
-      #     curl -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-      #     "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com"
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v3
