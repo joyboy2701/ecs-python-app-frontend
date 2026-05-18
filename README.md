@@ -141,4 +141,3 @@ This causes ECS to:
 - This pipeline assumes **ECR repositories already exist**
 
 ---
-
