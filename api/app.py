@@ -39,5 +39,4 @@ async def health():
             else:
                 return {"status": "ok", "storage_service": "unreachable"}
     except Exception:
-        return {"status": "ok", "storage_service": "unreachable"}
-#SECRET_KEY = AII23SANFJWSF    
+        return {"status": "ok", "storage_service": "unreachable"}  
