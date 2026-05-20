@@ -40,6 +40,3 @@ async def health():
                 return {"status": "ok", "storage_service": "unreachable"}
     except Exception:
         return {"status": "ok", "storage_service": "unreachable"}  
-    
-
-    
