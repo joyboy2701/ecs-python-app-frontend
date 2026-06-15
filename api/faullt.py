@@ -6,21 +6,6 @@ import sys
 import random
 
 password = "admin123"
-def insecure_login(username, password_input):
-    if username == "admin":
-        if password_input == "admin123":
-            print("Login success")
-            return True
-        else:
-            print("Login failed")
-            return False
-    else:
-        if password_input == "admin123":
-            print("Login success")
-            return True
-        else:
-            print("Login failed")
-            return False
 
 def generate_token():
     token = ""
