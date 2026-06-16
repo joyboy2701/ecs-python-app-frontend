@@ -1,0 +1,30 @@
+# TEMPORARY FILE FOR SONAR TESTING ONLY
+# Remove these issues after testing.
+
+FROM python:latest
+
+WORKDIR /app
+
+# Bad practice: fake hardcoded secrets for testing scanner only
+ENV PASSWORD="admin123"
+ENV API_KEY="1234567890abcdef"
+ENV AWS_SECRET_ACCESS_KEY="fake-secret-key-for-sonar-test"
+
+# Bad practice: installing packages without cleaning apt cache
+RUN apt-get update && apt-get install -y curl vim netcat-openbsd
+
+# Bad practice: unpinned Python packages
+RUN pip install fastapi httpx python-multipart uvicorn
+
+# Bad practice: ADD used instead of COPY
+ADD app.py /app/app.py
+
+# Bad practice: wide permissions
+RUN chmod -R 777 /app
+
+# Bad practice: exposing SSH port unnecessarily
+EXPOSE 22
+EXPOSE 80
+
+# Bad practice: container runs as root by default
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80"]
