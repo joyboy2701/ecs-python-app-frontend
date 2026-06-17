@@ -1,0 +1,23 @@
+# TEMPORARY FILE FOR TRIVY TESTING ONLY
+# Remove/revert this before merging.
+
+FROM python:3.8-slim-buster
+
+WORKDIR /app
+
+ENV PASSWORD="admin123"
+ENV API_KEY="1234567890abcdef"
+ENV AWS_SECRET_ACCESS_KEY="fake-secret-key-for-trivy-test"
+
+RUN apt-get update && apt-get install -y curl vim netcat-openbsd openssl
+
+RUN pip install fastapi httpx python-multipart uvicorn
+
+ADD app.py /app/app.py
+
+RUN chmod -R 777 /app
+
+EXPOSE 22
+EXPOSE 80
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80"]
