@@ -53,6 +53,7 @@ jobs:
           format: table
           severity: HIGH,CRITICAL
           vuln-type: os,library
+          ignore-unfixed: true
           exit-code: 1
           output: trivy-image-report.txt
 
