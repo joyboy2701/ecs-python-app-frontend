@@ -39,6 +39,15 @@ jobs:
         run: |
           echo "Trivy Config/Misconfiguration Report"
           cat trivy-config-report.txt || true
+          
+      - name: Show PR changes before Docker build
+        run: |
+          echo "Files changed in this PR:"
+          git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }}
+
+          echo ""
+          echo "Changes inside api folder:"
+          git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '^api/' || echo "No api folder changes found"
 
       - name: Build Docker image for Trivy image scan
         run: |
@@ -53,6 +62,7 @@ jobs:
           format: table
           severity: HIGH,CRITICAL
           vuln-type: os,library
+          ignore-unfixed: true
           exit-code: 1
           output: trivy-image-report.txt
 

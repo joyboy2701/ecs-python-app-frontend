@@ -1,19 +1,14 @@
-# TEMPORARY FILE FOR TRIVY TESTING ONLY
-# Remove/revert this before merging.
-
-FROM python:3.8-slim-buster
+FROM python:3.9-slim-bullseye
 
 WORKDIR /app
 
-ENV PASSWORD="admin123"
-ENV API_KEY="1234567890abcdef"
-ENV AWS_SECRET_ACCESS_KEY="fake-secret-key-for-trivy-test"
-
 RUN apt-get update && apt-get install -y curl vim netcat-openbsd openssl
+
+COPY requirements.txt /app/requirements.txt
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-ADD app.py /app/app.py
+COPY app.py /app/app.py
 
 RUN chmod -R 777 /app
 
