@@ -2,10 +2,6 @@ FROM python:3.9-slim-bullseye
 
 WORKDIR /app
 
-ENV PASSWORD="admin123"
-ENV API_KEY="1234567890abcdef"
-ENV AWS_SECRET_ACCESS_KEY="fake-secret-key-for-trivy-test"
-
 RUN apt-get update && apt-get install -y curl vim netcat-openbsd openssl
 
 COPY requirements.txt /app/requirements.txt
