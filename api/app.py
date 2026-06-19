@@ -40,17 +40,3 @@ async def health():
                 return {"status": "ok", "storage_service": "unreachable"}
     except Exception:
         return {"status": "ok", "storage_service": "unreachable"}  
-    
-@app.get("/health")
-async def health2():
-    # Optional: check if storage service is reachable
-    try:
-        async with httpx.AsyncClient(timeout=2) as client:
-            r = await client.get(f"{STORAGE_SERVICE_URL}/health")
-            if r.status_code == 200:
-                return {"status": "ok", "storage_service": "reachable2"}
-            else:
-                return {"status": "ok", "storage_service": "unreachable2"}
-    except Exception:
-        return {"status": "ok", "storage_service": "unreachable2"}  
-    
