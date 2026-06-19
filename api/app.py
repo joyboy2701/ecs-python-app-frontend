@@ -40,10 +40,3 @@ async def health():
                 return {"status": "ok", "storage_service": "unreachable"}
     except Exception:
         return {"status": "ok", "storage_service": "unreachable"}  
-    
-@app.get("/files")
-async def list_files2():
-    """Fetch all files from the storage service"""
-    async with httpx.AsyncClient() as client:
-        response = await client.get(f"{STORAGE_SERVICE_URL}/files")
-    return response.json()
