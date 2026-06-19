@@ -40,14 +40,27 @@ jobs:
           echo "Trivy Config/Misconfiguration Report"
           cat trivy-config-report.txt || true
           
-      - name: Show PR changes before Docker build
+      - name: Show changed files content before Docker build
         run: |
           echo "Files changed in this PR:"
-          git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }}
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+
+          echo "$CHANGED_FILES"
 
           echo ""
-          echo "Changes inside api folder:"
-          git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '^api/' || echo "No api folder changes found"
+          echo "Showing content of changed files:"
+          echo "$CHANGED_FILES" | while read file; do
+            if [ -f "$file" ]; then
+              echo ""
+              echo "========================================"
+              echo "File: $file"
+              echo "========================================"
+              cat "$file"
+            else
+              echo ""
+              echo "Skipping $file because it does not exist. It may have been deleted."
+            fi
+          done
 
       - name: Build Docker image for Trivy image scan
         run: |
