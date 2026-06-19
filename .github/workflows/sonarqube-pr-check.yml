@@ -1,127 +1,228 @@
-name: SonarQube PR Quality Gate
+# name: SonarQube PR Quality Gate
 
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - master
+# on:
+#   pull_request:
+#     types: [opened, synchronize, reopened]
+#     branches:
+#       - master
 
-jobs:
-  sonarqube-scan:
-    name: SonarQube PR Quality Gate
-    runs-on: ubuntu-latest
+# jobs:
+#   sonarqube-scan:
+#     name: SonarQube PR Quality Gate
+#     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
+#     permissions:
+#       contents: read
+#       pull-requests: write
+#       issues: write
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v5
+#         with:
+#           fetch-depth: 0
 
-      - name: SonarQube Cloud Scan
-        id: sonar
-        uses: SonarSource/sonarqube-scan-action@v7
-        continue-on-error: true
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.qualitygate.wait=true
+#       - name: SonarQube Cloud Scan
+#         id: sonar
+#         uses: SonarSource/sonarqube-scan-action@v7
+#         continue-on-error: true
+#         env:
+#           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+#         with:
+#           args: >
+#             -Dsonar.qualitygate.wait=true
 
-      - name: Generate SonarQube PR Report
-        if: always()
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
+#       - name: Generate SonarQube PR Report
+#         if: always()
+#         env:
+#           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+#           SONAR_HOST_URL: https://sonarcloud.io
+#           PR_NUMBER: ${{ github.event.pull_request.number }}
+#           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+#         run: |
+#           sudo apt-get update
+#           sudo apt-get install -y jq
 
-          SONAR_PROJECT_KEY=$(grep -E '^sonar.projectKey=' sonar-project.properties | cut -d'=' -f2-)
+#           SONAR_PROJECT_KEY=$(grep -E '^sonar.projectKey=' sonar-project.properties | cut -d'=' -f2-)
 
-          if [ -z "$SONAR_PROJECT_KEY" ]; then
-            echo "Could not find sonar.projectKey in sonar-project.properties"
-            exit 1
-          fi
+#           if [ -z "$SONAR_PROJECT_KEY" ]; then
+#             echo "Could not find sonar.projectKey in sonar-project.properties"
+#             exit 1
+#           fi
 
-          echo "Using Sonar project key: $SONAR_PROJECT_KEY"
+#           echo "Using Sonar project key: $SONAR_PROJECT_KEY"
+#           echo "Using PR head SHA: $PR_HEAD_SHA"
 
-          curl -s \
-            -H "Authorization: Bearer $SONAR_TOKEN" \
-            "$SONAR_HOST_URL/api/issues/search?componentKeys=$SONAR_PROJECT_KEY&pullRequest=$PR_NUMBER&resolved=false&ps=100" \
-            > sonar-issues.json
+#           curl -s \
+#             -H "Authorization: Bearer $SONAR_TOKEN" \
+#             "$SONAR_HOST_URL/api/issues/search?componentKeys=$SONAR_PROJECT_KEY&pullRequest=$PR_NUMBER&resolved=false&ps=100" \
+#             > sonar-issues.json
 
-          TOTAL=$(jq '.total' sonar-issues.json)
+#           TOTAL=$(jq '.total // 0' sonar-issues.json)
+#           BUGS=$(jq '[.issues[] | select(.type=="BUG")] | length' sonar-issues.json)
+#           VULNS=$(jq '[.issues[] | select(.type=="VULNERABILITY")] | length' sonar-issues.json)
+#           SMELLS=$(jq '[.issues[] | select(.type=="CODE_SMELL")] | length' sonar-issues.json)
 
-          cat > sonar-report.md <<EOF
-          ## SonarQube PR Report
+#           cat > sonar-report.md <<EOF
+#           ## SonarQube PR Code Review Report
 
-          **Quality Gate:** ${{ steps.sonar.outcome == 'success' && 'Passed' || 'Failed' }}
+#           **Quality Gate:** ${{ steps.sonar.outcome == 'success' && 'Passed' || 'Failed' }}
 
-          **New/Open PR issues found:** $TOTAL
+#           **Total issues found:** $TOTAL
 
-          EOF
+#           | Type | Count |
+#           |---|---:|
+#           | Bugs | $BUGS |
+#           | Vulnerabilities | $VULNS |
+#           | Code Smells | $SMELLS |
 
-          if [ "$TOTAL" -eq 0 ]; then
-            echo "No new SonarQube issues found in this PR." >> sonar-report.md
-          else
-            jq -r '
-              .issues[]
-              | "### \(.type) - \(.severity)\n"
-              + "**File:** `\(.component | split(":")[-1])`\n\n"
-              + "**Line:** \(.line // "N/A")\n\n"
-              + "**Rule:** `\(.rule)`\n\n"
-              + "**Message:** \(.message)\n"
-            ' sonar-issues.json >> sonar-report.md
-          fi
+#           ---
 
-      - name: Post SonarQube report as PR comment
-        if: always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
+#           EOF
 
-            const body = fs.readFileSync('sonar-report.md', 'utf8');
-            const marker = '<!-- sonar-pr-report -->';
-            const finalBody = `${marker}\n${body}`;
+#           if [ "$TOTAL" -eq 0 ]; then
+#             echo "No new SonarQube issues found in this PR." >> sonar-report.md
+#           else
+#             jq -r '
+#               .issues[]
+#               | [
+#                   .type,
+#                   .severity,
+#                   (.component | split(":")[-1]),
+#                   (.line // "N/A"),
+#                   .rule,
+#                   .message
+#                 ]
+#               | @tsv
+#             ' sonar-issues.json | while IFS=$'\t' read -r TYPE SEVERITY FILE LINE RULE MESSAGE; do
 
-            const { owner, repo } = context.repo;
-            const issue_number = context.payload.pull_request.number;
+#               FILE_URL="https://github.com/${GITHUB_REPOSITORY}/blob/${PR_HEAD_SHA}/${FILE}"
 
-            const comments = await github.rest.issues.listComments({
-              owner,
-              repo,
-              issue_number,
-              per_page: 100
-            });
+#               if [[ "$LINE" =~ ^[0-9]+$ ]]; then
+#                 FILE_URL="${FILE_URL}#L${LINE}"
+#               fi
 
-            const existingComment = comments.data.find(comment =>
-              comment.user.type === 'Bot' &&
-              comment.body.includes(marker)
-            );
+#               if [ "$TYPE" = "VULNERABILITY" ]; then
+#                 ISSUE_TITLE="Security Issue"
+#               elif [ "$TYPE" = "BUG" ]; then
+#                 ISSUE_TITLE="Bug"
+#               elif [ "$TYPE" = "CODE_SMELL" ]; then
+#                 ISSUE_TITLE="Code Quality Issue"
+#               else
+#                 ISSUE_TITLE="$TYPE"
+#               fi
 
-            if (existingComment) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existingComment.id,
-                body: finalBody
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number,
-                body: finalBody
-              });
-            }
+#               {
+#                 echo "## $ISSUE_TITLE - $SEVERITY"
+#                 echo ""
+#                 echo "**File:** [$FILE]($FILE_URL)"
+#                 echo ""
+#                 echo "**Line:** \`$LINE\`"
+#                 echo ""
+#                 echo "**Rule:** \`$RULE\`"
+#                 echo ""
+#                 echo "**Problem:** $MESSAGE"
+#                 echo ""
+#               } >> sonar-report.md
 
-      - name: Fail workflow if SonarQube Quality Gate failed
-        if: steps.sonar.outcome == 'failure'
-        run: exit 1
+#               if [[ "$LINE" =~ ^[0-9]+$ ]] && [ -f "$FILE" ]; then
+#                 START=$((LINE - 3))
+#                 END=$((LINE + 3))
+
+#                 if [ "$START" -lt 1 ]; then
+#                   START=1
+#                 fi
+
+#                 EXT="${FILE##*.}"
+
+#                 if [ "$EXT" = "py" ]; then
+#                   LANG="python"
+#                 elif [ "$EXT" = "js" ]; then
+#                   LANG="javascript"
+#                 elif [ "$EXT" = "ts" ]; then
+#                   LANG="typescript"
+#                 elif [ "$EXT" = "yaml" ] || [ "$EXT" = "yml" ]; then
+#                   LANG="yaml"
+#                 else
+#                   LANG=""
+#                 fi
+
+#                 {
+#                   echo "**Code around the issue:**"
+#                   echo ""
+#                   echo "\`\`\`$LANG"
+#                   nl -ba "$FILE" | sed -n "${START},${END}p"
+#                   echo "\`\`\`"
+#                   echo ""
+#                 } >> sonar-report.md
+#               else
+#                 echo "**Code preview:** Not available for this issue." >> sonar-report.md
+#                 echo "" >> sonar-report.md
+#               fi
+
+#               {
+#                 echo "**Suggested action:**"
+#                 if [ "$TYPE" = "VULNERABILITY" ]; then
+#                   echo "Move sensitive values out of source code and use GitHub Secrets, AWS Secrets Manager, SSM Parameter Store, or environment variables."
+#                 elif [ "$TYPE" = "BUG" ]; then
+#                   echo "Fix the logic so the code behaves correctly and does not contain duplicated or unreachable branches."
+#                 elif [ "$TYPE" = "CODE_SMELL" ]; then
+#                   echo "Refactor or clean up this code to improve maintainability."
+#                 else
+#                   echo "Review and fix this issue based on the SonarQube recommendation."
+#                 fi
+#                 echo ""
+#                 echo "---"
+#                 echo ""
+#               } >> sonar-report.md
+
+#             done
+#           fi
+
+#           cat sonar-report.md
+
+#       - name: Post SonarQube report as PR comment
+#         if: always()
+#         uses: actions/github-script@v7
+#         with:
+#           script: |
+#             const fs = require('fs');
+
+#             const body = fs.readFileSync('sonar-report.md', 'utf8');
+#             const marker = '<!-- sonar-pr-report -->';
+#             const finalBody = `${marker}\n${body}`;
+
+#             const { owner, repo } = context.repo;
+#             const issue_number = context.payload.pull_request.number;
+
+#             const comments = await github.rest.issues.listComments({
+#               owner,
+#               repo,
+#               issue_number,
+#               per_page: 100
+#             });
+
+#             const existingComment = comments.data.find(comment =>
+#               comment.user.type === 'Bot' &&
+#               comment.body.includes(marker)
+#             );
+
+#             if (existingComment) {
+#               await github.rest.issues.updateComment({
+#                 owner,
+#                 repo,
+#                 comment_id: existingComment.id,
+#                 body: finalBody
+#               });
+#             } else {
+#               await github.rest.issues.createComment({
+#                 owner,
+#                 repo,
+#                 issue_number,
+#                 body: finalBody
+#               });
+#             }
+
+#       - name: Fail workflow if SonarQube Quality Gate failed
+#         if: steps.sonar.outcome == 'failure'
+#         run: exit 1
