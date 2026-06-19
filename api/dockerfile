@@ -8,9 +8,11 @@ ENV AWS_SECRET_ACCESS_KEY="fake-secret-key-for-trivy-test"
 
 RUN apt-get update && apt-get install -y curl vim netcat-openbsd openssl
 
-RUN pip install fastapi httpx python-multipart uvicorn
+COPY requirements.txt /app/requirements.txt
 
-ADD app.py /app/app.py
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py /app/app.py
 
 RUN chmod -R 777 /app
 
