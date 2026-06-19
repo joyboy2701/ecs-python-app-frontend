@@ -43,33 +43,6 @@ jobs:
       - name: Build Docker image for Trivy image scan
         run: |
           docker build -f ./api/dockerfile -t upload-api:${{ github.sha }} ./api
-      
-      - name: Verify files inside built Docker image
-        run: |
-          echo "Starting container from built image..."
-          docker run -d --name upload-api-check upload-api:${{ github.sha }}
-
-          echo "Waiting for container to start..."
-          sleep 5
-
-          echo ""
-          echo "Checking /app/app.py inside container:"
-          echo "========================================"
-          docker exec upload-api-check sh -c "cat /app/app.py"
-
-          echo ""
-          echo "Checking /app/requirements.txt inside container:"
-          echo "========================================"
-          docker exec upload-api-check sh -c "cat /app/requirements.txt"
-
-          echo ""
-          echo "Container logs:"
-          echo "========================================"
-          docker logs upload-api-check || true
-
-          echo ""
-          echo "Cleaning up container..."
-          docker rm -f upload-api-check
 
       - name: Trivy image scan for OS and library vulnerabilities
         id: trivy_image
