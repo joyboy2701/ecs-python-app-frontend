@@ -11,7 +11,7 @@ ENV AWS_SECRET_ACCESS_KEY="fake-secret-key-for-trivy-test"
 
 RUN apt-get update && apt-get install -y curl vim netcat-openbsd openssl
 
-RUN pip install fastapi httpx python-multipart uvicorn
+RUN pip install --no-cache-dir -r requirements.txt
 
 ADD app.py /app/app.py
 
