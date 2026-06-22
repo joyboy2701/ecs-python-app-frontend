@@ -1,7 +1,4 @@
-# TEMPORARY FILE FOR TRIVY TESTING ONLY
-# Remove/revert this before merging.
-
-FROM python:3.11-slim-bookworm
+FROM python:3.9-slim-bullseye
 
 WORKDIR /app
 
