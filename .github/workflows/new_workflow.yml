@@ -1,4 +1,4 @@
-name: Build & Push Docker Images to ECR
+name: RUn ON 'run_sonarqube'  COMMENT
 
 on:
   issue_comment:
