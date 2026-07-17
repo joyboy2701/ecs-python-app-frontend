@@ -1,4 +1,4 @@
-name: RUn ON 'run_sonarqube'  COMMENT
+name: Run on 'run_sonarqube' comment
 
 on:
   issue_comment:
@@ -9,9 +9,12 @@ jobs:
     name: Reject unauthorized production trigger
     if: >-
       github.event.issue.pull_request &&
-      github.event.comment.user.login != 'joyboy2701' ||
-      github.event.comment.user.login != 'RameezAhmedZaka' &&
-      github.event.comment.body == 'run_sonarqube'
+      github.event.comment.body == 'run_sonarqube' &&
+      !contains(
+        fromJSON('["joyboy2701", "RameezAhmedZaka"]'),
+        github.event.comment.user.login
+      )
+
     runs-on: ubuntu-latest
 
     permissions:
@@ -33,8 +36,12 @@ jobs:
     name: Verify required PR approval
     if: >-
       github.event.issue.pull_request &&
-      github.event.comment.user.login == 'joyboy2701' || github.event.comment.user.login == 'RameezAhmedZaka' &&
-      github.event.comment.body == 'run_sonarqube'
+      github.event.comment.body == 'run_sonarqube' &&
+      contains(
+        fromJSON('["joyboy2701", "RameezAhmedZaka"]'),
+        github.event.comment.user.login
+      )
+
     runs-on: ubuntu-latest
 
     permissions:
@@ -64,8 +71,15 @@ jobs:
             });
 
             const decision = result.repository.pullRequest.reviewDecision;
-            core.info(`PR review decision: ${decision ?? 'REVIEW_REQUIRED'}`);
-            core.setOutput('approved', decision === 'APPROVED' ? 'true' : 'false');
+
+            core.info(
+              `PR review decision: ${decision ?? 'REVIEW_REQUIRED'}`
+            );
+
+            core.setOutput(
+              'approved',
+              decision === 'APPROVED' ? 'true' : 'false'
+            );
 
       - name: Post missing approval message
         if: steps.review-decision.outputs.approved != 'true'
@@ -75,20 +89,18 @@ jobs:
             await github.rest.issues.createComment({
               ...context.repo,
               issue_number: context.issue.number,
-              body: `@${context.payload.comment.user.login}, the production pipeline was not triggered because at least one required code-owner approval is missing.`
+              body: `@${context.payload.comment.user.login}, the pipeline was not triggered because at least one required code-owner approval is missing.`
             });
 
   build-and-push:
     name: Test Pipeline Completion
     needs: approval_gate
-
-    if: >-
-      needs.approval_gate.outputs.approved == 'true'
+    if: needs.approval_gate.outputs.approved == 'true'
 
     runs-on: ubuntu-latest
 
     steps:
-    - name: Complete test job
-      run: |
-        echo "Approval verified."
-        echo "Test pipeline completed successfully."
+      - name: Complete test job
+        run: |
+          echo "Approval verified."
+          echo "Test pipeline completed successfully."
