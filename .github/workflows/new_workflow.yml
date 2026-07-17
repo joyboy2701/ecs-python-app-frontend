@@ -15,6 +15,7 @@ jobs:
 
     permissions:
       issues: write
+      pull-requests: write
 
     steps:
       - name: Post unauthorized trigger message
@@ -36,8 +37,8 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      pull-requests: read
       issues: write
+      pull-requests: write
 
     outputs:
       approved: ${{ steps.review-decision.outputs.approved }}
