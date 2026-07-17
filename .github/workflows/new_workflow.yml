@@ -9,7 +9,7 @@ jobs:
     name: Reject unauthorized production trigger
     if: >-
       github.event.issue.pull_request &&
-      github.event.comment.user.login != 'joyboy2701' &&
+      contains(fromJSON('["joyboy2701", "RameezAhmedZaka"]'), github.event.comment.user.login) &&
       github.event.comment.body == 'run_sonarqube'
     runs-on: ubuntu-latest
 
@@ -32,7 +32,7 @@ jobs:
     name: Verify required PR approval
     if: >-
       github.event.issue.pull_request &&
-      github.event.comment.user.login == 'joyboy2701' &&
+      contains(fromJSON('["joyboy2701", "RameezAhmedZaka"]'), github.event.comment.user.login) &&
       github.event.comment.body == 'run_sonarqube'
     runs-on: ubuntu-latest
 
