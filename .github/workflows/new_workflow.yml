@@ -23,7 +23,7 @@ jobs:
       authorized: ${{ steps.check-codeowners.outputs.authorized }}
 
     steps:
-      - name: Check user against CODEOWNERS
+      - name: Check user against CODEOWNER
         id: check-codeowners
         uses: actions/github-script@v8
         with:
@@ -51,12 +51,12 @@ jobs:
             const baseRepo =
               pullRequest.base.repo.name;
 
-            const baseSha =
-              pullRequest.base.sha;
+            const baseRef =
+              pullRequest.base.ref;
 
             core.info(
               `Checking ${commenter} against CODEOWNERS from ` +
-              `${baseOwner}/${baseRepo}@${baseSha}`
+              `${baseOwner}/${baseRepo}@${baseRef}`
             );
 
             /*
