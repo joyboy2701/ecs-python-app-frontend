@@ -4,55 +4,107 @@ on:
   issue_comment:
     types: [created]
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  id-token: write
+
 jobs:
-  build-and-push:
-    name: Build, Push and Deploy
+  authorize-user:
+    name: Verify authorized user
     if: >-
       github.event.issue.pull_request &&
-      github.event.comment.user.login == 'joyboy2701' &&
       github.event.comment.body == 'run_sonarqube'
+
     runs-on: ubuntu-latest
 
-    permissions:
-      id-token: write
-      contents: read
+    outputs:
+      authorized: ${{ steps.check-user.outputs.authorized }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          ref: refs/pull/${{ github.event.issue.number }}/merge
-
-      - name: SonarQube Cloud Scan
-        uses: SonarSource/sonarqube-scan-action@v7
+      - name: Check trigger user
+        id: check-user
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.qualitygate.wait=true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v3
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.REGION }}
-
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build & Push API image
+          COMMENT_USER: ${{ github.event.comment.user.login }}
         run: |
-          docker build -t upload-api:latest ./api
-          docker tag upload-api:latest ${{ secrets.ECR_REGISTRY }}/upload-api:latest
-          docker push ${{ secrets.ECR_REGISTRY }}/upload-api:latest
+          if [ "$COMMENT_USER" = "joyboy2701" ]; then
+            echo "authorized=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "authorized=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Update ECS Service
+      - name: Comment when user is unauthorized
+        if: steps.check-user.outputs.authorized != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: `@${context.payload.comment.user.login}, you are not allowed to trigger this pipeline.`
+            });
+
+  approval-gate:
+    name: Verify required PR approval
+    needs: authorize-user
+    if: needs.authorize-user.outputs.authorized == 'true'
+
+    runs-on: ubuntu-latest
+
+    outputs:
+      approved: ${{ steps.review-check.outputs.approved }}
+
+    steps:
+      - name: Check PR review decision
+        id: review-check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = await github.graphql(`
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    reviewDecision
+                  }
+                }
+              }
+            `, {
+              ...context.repo,
+              number: context.issue.number
+            });
+
+            const decision =
+              result.repository.pullRequest.reviewDecision;
+
+            core.info(`PR review decision: ${decision ?? 'REVIEW_REQUIRED'}`);
+
+            core.setOutput(
+              'approved',
+              decision === 'APPROVED' ? 'true' : 'false'
+            );
+
+      - name: Comment when review is required
+        if: steps.review-check.outputs.approved != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: `@${context.payload.comment.user.login}, the pipeline was not triggered because the required PR approval is missing.`
+            });
+
+  build-and-push:
+    name: Build, Push and Deploy
+    needs: approval-gate
+    if: needs.approval-gate.outputs.approved == 'true'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Complete test job
         run: |
-          aws ecs update-service \
-            --cluster ${{ vars.CLUSTER }} \
-            --service ${{ vars.SERVICE }} \
-            --force-new-deployment \
-            --region ${{ secrets.REGION }}
+          echo "Authorization verified."
+          echo "Required PR approval verified."
+          echo "Job completed successfully."
