@@ -1,4 +1,4 @@
-name: Build & Push Docker Images to ECR
+name: New Workflow
 
 on:
   issue_comment:
