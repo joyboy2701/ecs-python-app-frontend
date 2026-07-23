@@ -11,7 +11,8 @@ permissions:
 
 jobs:
   authorize-user:
-    name: Verify authorized user
+    name: Verify CODEOWNERS authorization
+
     if: >-
       github.event.issue.pull_request &&
       github.event.comment.body == 'run_sonarqube'
@@ -19,33 +20,168 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      authorized: ${{ steps.check-user.outputs.authorized }}
+      authorized: ${{ steps.check-codeowners.outputs.authorized }}
 
     steps:
-      - name: Check trigger user
-        id: check-user
-        env:
-          COMMENT_USER: ${{ github.event.comment.user.login }}
-        run: |
-          if [ "$COMMENT_USER" = "joyboy2701" ]; then
-            echo "authorized=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "authorized=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Comment when user is unauthorized
-        if: steps.check-user.outputs.authorized != 'true'
+      - name: Check user against CODEOWNERS
+        id: check-codeowners
         uses: actions/github-script@v8
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const commenter =
+              context.payload.comment.user.login.toLowerCase();
+
+            const pullNumber = context.issue.number;
+
+            /*
+             * Retrieve the PR so CODEOWNERS can be read from the trusted
+             * base commit rather than from the contributor's PR branch.
+             */
+            const { data: pullRequest } =
+              await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pullNumber
+              });
+
+            const baseOwner =
+              pullRequest.base.repo.owner.login;
+
+            const baseRepo =
+              pullRequest.base.repo.name;
+
+            const baseSha =
+              pullRequest.base.sha;
+
+            core.info(
+              `Checking ${commenter} against CODEOWNERS from ` +
+              `${baseOwner}/${baseRepo}@${baseSha}`
+            );
+
+            /*
+             * GitHub checks these CODEOWNERS locations in this order.
+             */
+            const possiblePaths = [
+              '.github/CODEOWNERS',
+              'CODEOWNERS',
+              'docs/CODEOWNERS'
+            ];
+
+            let codeownersContent = null;
+            let codeownersPath = null;
+
+            for (const path of possiblePaths) {
+              try {
+                const { data } =
+                  await github.rest.repos.getContent({
+                    owner: baseOwner,
+                    repo: baseRepo,
+                    path,
+                    ref: baseSha
+                  });
+
+                if (Array.isArray(data) || !data.content) {
+                  continue;
+                }
+
+                codeownersContent = Buffer.from(
+                  data.content.replace(/\n/g, ''),
+                  'base64'
+                ).toString('utf8');
+
+                codeownersPath = path;
+                break;
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              }
+            }
+
+            if (!codeownersContent) {
+              core.warning(
+                'No CODEOWNERS file was found in .github/, root, or docs/.'
+              );
+
+              core.setOutput('authorized', 'false');
+              return;
+            }
+
+            core.info(`Using CODEOWNERS file: ${codeownersPath}`);
+
+            const allowedUsers = new Set();
+
+            for (const rawLine of codeownersContent.split(/\r?\n/)) {
+              /*
+               * Remove comments. The first field is the path pattern;
+               * remaining fields are owners.
+               */
+              const line = rawLine.split('#')[0].trim();
+
+              if (!line) {
+                continue;
+              }
+
+              const entries = line.split(/\s+/);
+              const owners = entries.slice(1);
+
+              for (const owner of owners) {
+                /*
+                 * Accept individual usernames such as @joyboy2701.
+                 * Team references such as @company/devops are ignored.
+                 */
+                if (
+                  owner.startsWith('@') &&
+                  !owner.includes('/')
+                ) {
+                  allowedUsers.add(
+                    owner.substring(1).toLowerCase()
+                  );
+                }
+              }
+            }
+
+            core.info(
+              `Allowed CODEOWNERS users: ${
+                [...allowedUsers].join(', ') || 'none'
+              }`
+            );
+
+            const authorized =
+              allowedUsers.has(commenter);
+
+            core.setOutput(
+              'authorized',
+              authorized ? 'true' : 'false'
+            );
+
+            if (authorized) {
+              core.info(
+                `${commenter} is authorized to trigger the pipeline.`
+              );
+            } else {
+              core.warning(
+                `${commenter} is not listed as an individual CODEOWNER.`
+              );
+            }
+
+      - name: Comment when user is unauthorized
+        if: steps.check-codeowners.outputs.authorized != 'true'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             await github.rest.issues.createComment({
-              ...context.repo,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `@${context.payload.comment.user.login}, you are not allowed to trigger this pipeline.`
+              body: `@${context.payload.comment.user.login}, you are not allowed to trigger this pipeline because your username is not listed in the CODEOWNERS file.`
             });
 
   approval-gate:
     name: Verify required PR approval
+
     needs: authorize-user
     if: needs.authorize-user.outputs.authorized == 'true'
 
@@ -59,6 +195,7 @@ jobs:
         id: review-check
         uses: actions/github-script@v8
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const result = await github.graphql(`
               query($owner: String!, $repo: String!, $number: Int!) {
@@ -69,14 +206,17 @@ jobs:
                 }
               }
             `, {
-              ...context.repo,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
               number: context.issue.number
             });
 
             const decision =
               result.repository.pullRequest.reviewDecision;
 
-            core.info(`PR review decision: ${decision ?? 'REVIEW_REQUIRED'}`);
+            core.info(
+              `PR review decision: ${decision ?? 'REVIEW_REQUIRED'}`
+            );
 
             core.setOutput(
               'approved',
@@ -87,15 +227,18 @@ jobs:
         if: steps.review-check.outputs.approved != 'true'
         uses: actions/github-script@v8
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             await github.rest.issues.createComment({
-              ...context.repo,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
               issue_number: context.issue.number,
               body: `@${context.payload.comment.user.login}, the pipeline was not triggered because the required PR approval is missing.`
             });
 
   build-and-push:
-    name: Build, Push and Deploy
+    name: Test Pipeline Completion
+
     needs: approval-gate
     if: needs.approval-gate.outputs.approved == 'true'
 
@@ -104,6 +247,6 @@ jobs:
     steps:
       - name: Complete test job
         run: |
-          echo "Authorization verified."
+          echo "CODEOWNERS authorization verified."
           echo "Required PR approval verified."
           echo "Job completed successfully."
