@@ -7,8 +7,7 @@ on:
 permissions:
   contents: read
   issues: write
-  pull-requests: read
-  id-token: write
+  pull-requests: write
 
 jobs:
   authorize-user:
@@ -36,7 +35,7 @@ jobs:
 
       - name: Comment when user is unauthorized
         if: steps.check-user.outputs.authorized != 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.createComment({
@@ -58,7 +57,7 @@ jobs:
     steps:
       - name: Check PR review decision
         id: review-check
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const result = await github.graphql(`
@@ -86,7 +85,7 @@ jobs:
 
       - name: Comment when review is required
         if: steps.review-check.outputs.approved != 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.createComment({
