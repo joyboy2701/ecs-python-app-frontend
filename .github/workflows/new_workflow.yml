@@ -78,7 +78,7 @@ jobs:
                     owner: baseOwner,
                     repo: baseRepo,
                     path,
-                    ref: baseSha
+                    ref: baseRef
                   });
 
                 if (Array.isArray(data) || !data.content) {
